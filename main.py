@@ -5,9 +5,11 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
-import seaborn as sns
-import duckdb
+# import seaborn as sns  # Removed to reduce size
+# import duckdb  # Removed to reduce size
 import base64
 import io
 import json
