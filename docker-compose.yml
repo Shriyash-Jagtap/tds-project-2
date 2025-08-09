@@ -1,0 +1,13 @@
+services:
+  data-analyst-api:
+    build: .
+    ports:
+      - "${PORT:-8000}:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AIPIPE_API_KEY=${AIPIPE_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    restart: unless-stopped
