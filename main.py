@@ -76,36 +76,63 @@ async def call_gemini(prompt: str, context: str = "") -> str:
 def scrape_wikipedia_table(url: str) -> pd.DataFrame:
     """Scrape table data from Wikipedia"""
     try:
-        response = requests.get(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # Direct pandas approach first
+        try:
+            tables = pd.read_html(url, header=0, attrs={'class': 'wikitable'})
+            if tables:
+                df = tables[0]
+                print(f"Direct pandas scraping successful: {df.shape}")
+                return df
+        except Exception as e:
+            print(f"Direct pandas failed: {e}")
+        
+        # Manual scraping approach
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Find all wikitable tables
-        tables = pd.read_html(str(soup), match='Rank')
-        
+        # Find the main wikitable
+        tables = soup.find_all('table', {'class': 'wikitable'})
         if not tables:
-            # Try alternative approach
-            tables = soup.find_all('table', {'class': 'wikitable'})
-            if not tables:
-                return pd.DataFrame()
+            print("No wikitable found")
+            return pd.DataFrame()
+        
+        # Parse the first table
+        table = tables[0]
+        rows = []
+        
+        # Get headers
+        header_row = table.find('tr')
+        if header_row:
+            headers = []
+            for th in header_row.find_all(['th', 'td']):
+                header_text = th.text.strip().replace('\n', ' ').replace('\xa0', ' ')
+                headers.append(header_text)
             
-            # Parse first table manually
-            table = tables[0]
-            rows = []
-            for row in table.find_all('tr'):
+            # Get data rows
+            for row in table.find_all('tr')[1:]:  # Skip header
                 cells = row.find_all(['td', 'th'])
-                if cells:
-                    row_data = [cell.text.strip().replace('\n', ' ').replace('\xa0', ' ') for cell in cells]
+                if cells and len(cells) >= len(headers):
+                    row_data = []
+                    for cell in cells[:len(headers)]:  # Match header count
+                        cell_text = cell.text.strip().replace('\n', ' ').replace('\xa0', ' ')
+                        # Clean up references like [1][2]
+                        cell_text = re.sub(r'\[.*?\]', '', cell_text).strip()
+                        row_data.append(cell_text)
                     rows.append(row_data)
             
-            if rows:
-                df = pd.DataFrame(rows[1:], columns=rows[0] if rows else [])
+            if rows and headers:
+                df = pd.DataFrame(rows, columns=headers)
+                print(f"Manual scraping successful: {df.shape}")
                 return df
-        else:
-            # Use pandas read_html result
-            df = tables[0]
-            return df
         
         return pd.DataFrame()
+        
     except Exception as e:
         print(f"Error scraping Wikipedia: {str(e)}")
         import traceback
@@ -220,16 +247,56 @@ async def analyze_films_data(questions_text: str) -> List[Any]:
     """Analyze films data based on questions"""
     results = []
     
-    df = scrape_wikipedia_table("https://en.wikipedia.org/wiki/List_of_highest-grossing_films")
+    # Try multiple approaches to get the data
+    df = pd.DataFrame()
     
+    # Method 1: Custom scraping
+    try:
+        df = scrape_wikipedia_table("https://en.wikipedia.org/wiki/List_of_highest-grossing_films")
+        print(f"Method 1 result: {df.shape if not df.empty else 'Failed'}")
+    except Exception as e:
+        print(f"Method 1 failed: {e}")
+    
+    # Method 2: pandas read_html
     if df.empty:
-        print("Failed to scrape, trying alternative approach")
-        # Try using pandas directly
         try:
-            dfs = pd.read_html("https://en.wikipedia.org/wiki/List_of_highest-grossing_films")
-            df = dfs[0] if dfs else pd.DataFrame()
-        except:
-            return ["Error: Could not scrape data", "", 0, ""]
+            print("Trying pandas read_html...")
+            dfs = pd.read_html("https://en.wikipedia.org/wiki/List_of_highest-grossing_films", 
+                             header=0, attrs={'class': 'wikitable'})
+            if dfs:
+                df = dfs[0]
+                print(f"Method 2 result: {df.shape}")
+            else:
+                print("Method 2: No tables found")
+        except Exception as e:
+            print(f"Method 2 failed: {e}")
+    
+    # Method 3: Try different Wikipedia URL or approach
+    if df.empty:
+        try:
+            print("Trying alternative Wikipedia approach...")
+            import requests
+            from bs4 import BeautifulSoup
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+            
+            response = requests.get("https://en.wikipedia.org/wiki/List_of_highest-grossing_films", 
+                                  headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                # Try pandas read_html with the response content
+                dfs = pd.read_html(response.content)
+                if dfs and len(dfs) > 0:
+                    df = dfs[0]  # First table
+                    print(f"Method 3 success: {df.shape}")
+                    print(f"Columns: {df.columns.tolist()}")
+            
+        except Exception as e:
+            print(f"Method 3 failed: {e}")
+            import traceback
+            traceback.print_exc()
     
     if df.empty:
         return ["Error: Could not scrape data", "", 0, ""]
@@ -464,9 +531,11 @@ async def analyze_court_data(questions_text: str, questions_dict: Dict) -> Dict[
 async def process_data_request(questions_text: str, attachments: Dict[str, bytes]) -> Any:
     """Main processing function for data analysis requests"""
     
+    print(f"Processing request with questions: {questions_text[:100]}...")
     questions_lower = questions_text.lower()
     
     if "gemini" in questions_lower or "llm" in questions_lower:
+        print("Using Gemini for processing")
         context = "You are a data analyst. Analyze the following data and questions."
         if attachments:
             for filename, content in attachments.items():
@@ -482,6 +551,7 @@ async def process_data_request(questions_text: str, attachments: Dict[str, bytes
             return response
     
     if "highest-grossing" in questions_lower or "films" in questions_lower:
+        print("Processing films data request")
         return await analyze_films_data(questions_text)
     
     if "high court" in questions_lower or "judgement" in questions_lower:
