@@ -1,0 +1,19 @@
+Analyze the Wikipedia page for the movie Titanic (1997 film).
+
+Return a JSON object with keys:
+- `budget_millions`: number (budget in millions USD)
+- `worldwide_gross_millions`: number (worldwide box office in millions USD)
+- `director`: string
+- `runtime_minutes`: number
+- `release_year`: number
+- `production_companies`: list of strings
+- `main_cast_count`: number (number of main cast members listed)
+
+Answer:
+1. What was the budget of Titanic in millions of dollars?
+2. What was the worldwide box office gross in millions of dollars?
+3. Who directed Titanic?
+4. What is the runtime of the movie in minutes?
+5. What year was Titanic released?
+6. What are the main production companies involved?
+7. How many main cast members are listed in the Wikipedia infobox?

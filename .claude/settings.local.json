@@ -4,7 +4,11 @@
       "Bash(cp:*)",
       "Bash(pip install:*)",
       "Bash(python:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(source:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": []
   }

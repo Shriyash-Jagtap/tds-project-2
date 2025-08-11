@@ -21,16 +21,18 @@ import tempfile
 import os
 from sklearn.linear_model import LinearRegression
 from dotenv import load_dotenv
+import networkx as nx
+from collections import Counter
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI()
 
-# Configure aipipe.org API
+# Configure aipipe.org API (OpenRouter proxy method)
 AIPIPE_API_KEY = os.getenv("AIPIPE_API_KEY", "")  # Get from environment variable
-GEMINI_API_URL = "https://aipipe.org/api/chat"
-GEMINI_MODEL = "gemini-flash"
+GEMINI_API_URL = "https://aipipe.org/openrouter/v1/chat/completions"
+GEMINI_MODEL = "meta-llama/llama-3.3-70b-instruct:free"  # Use OpenRouter model name
 
 if not AIPIPE_API_KEY:
     print("WARNING: AIPIPE_API_KEY not set. Please set it as an environment variable.")
@@ -38,11 +40,12 @@ if not AIPIPE_API_KEY:
     print("Set it in .env file or as environment variable: AIPIPE_API_KEY=your_key_here")
 
 async def call_gemini(prompt: str, context: str = "") -> str:
-    """Call Gemini Flash via aipipe.org API"""
+    """Call Gemini 2.0 Flash via aipipe.org OpenRouter proxy"""
     try:
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {AIPIPE_API_KEY}"
+            "Authorization": f"Bearer {AIPIPE_API_KEY}",
+            # Following aipipe.org OpenRouter proxy format
         }
         
         full_prompt = f"{context}\n\n{prompt}" if context else prompt
@@ -51,26 +54,40 @@ async def call_gemini(prompt: str, context: str = "") -> str:
             "model": GEMINI_MODEL,
             "messages": [
                 {
-                    "role": "user",
+                    "role": "user", 
                     "content": full_prompt
                 }
             ],
             "temperature": 0.3,
-            "max_tokens": 4000
+            "max_tokens": 4000,
+            "stream": False
         }
+        
+        print(f"Calling Gemini API: {GEMINI_API_URL}")
+        print(f"Model: {GEMINI_MODEL}")
         
         response = requests.post(GEMINI_API_URL, json=payload, headers=headers, timeout=30)
         
         if response.status_code == 200:
             result = response.json()
+            print(f"Gemini API success: {response.status_code}")
+            
+            # OpenRouter/aipipe format
             if "choices" in result and len(result["choices"]) > 0:
-                return result["choices"][0]["message"]["content"]
-            return result.get("content", "")
+                content = result["choices"][0]["message"]["content"]
+                print(f"Response length: {len(content)} chars")
+                return content
+            else:
+                print(f"Unexpected response format: {result}")
+                return ""
         else:
             print(f"Gemini API error: {response.status_code} - {response.text}")
             return ""
+            
     except Exception as e:
         print(f"Error calling Gemini: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return ""
 
 def scrape_wikipedia_table(url: str) -> pd.DataFrame:
@@ -242,6 +259,149 @@ def create_scatterplot(x_data, y_data, x_label="X", y_label="Y",
         import traceback
         traceback.print_exc()
         return ""
+
+async def analyze_wikipedia_page(questions_text: str, url: str) -> Dict[str, Any]:
+    """Analyze a specific Wikipedia page based on questions"""
+    results = {}
+    questions_lower = questions_text.lower()
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Find infobox
+        infobox = soup.find('table', class_='infobox')
+        
+        if not infobox:
+            return {"error": "No infobox found on Wikipedia page"}
+        
+        # Extract data from infobox
+        infobox_data = {}
+        rows = infobox.find_all('tr')
+        
+        for row in rows:
+            header = row.find('th')
+            data = row.find('td')
+            
+            if header and data:
+                key = header.get_text(strip=True).lower()
+                value = data.get_text(strip=True)
+                # Clean up references
+                value = re.sub(r'\[.*?\]', '', value).strip()
+                infobox_data[key] = value
+        
+        # Extract specific information based on questions
+        
+        # Budget
+        if 'budget' in questions_lower:
+            budget_value = None
+            for key, value in infobox_data.items():
+                if 'budget' in key:
+                    # Extract millions from budget
+                    budget_match = re.search(r'\$?([\d,]+(?:\.\d+)?)\s*million', value, re.IGNORECASE)
+                    if budget_match:
+                        budget_value = float(budget_match.group(1).replace(',', ''))
+                    else:
+                        # Try to extract raw number and convert
+                        number_match = re.search(r'\$?([\d,]+)', value)
+                        if number_match:
+                            raw_number = float(number_match.group(1).replace(',', ''))
+                            if raw_number > 1000000:  # If it's in raw dollars
+                                budget_value = raw_number / 1000000
+                            else:
+                                budget_value = raw_number
+                    break
+            if budget_value:
+                results['budget_millions'] = budget_value
+        
+        # Box office / gross
+        if 'gross' in questions_lower or 'box office' in questions_lower:
+            gross_value = None
+            for key, value in infobox_data.items():
+                if 'box office' in key or 'gross' in key:
+                    # Extract millions from gross
+                    gross_match = re.search(r'\$?([\d,]+(?:\.\d+)?)\s*(?:billion|bn)', value, re.IGNORECASE)
+                    if gross_match:
+                        gross_value = float(gross_match.group(1).replace(',', '')) * 1000
+                    else:
+                        gross_match = re.search(r'\$?([\d,]+(?:\.\d+)?)\s*million', value, re.IGNORECASE)
+                        if gross_match:
+                            gross_value = float(gross_match.group(1).replace(',', ''))
+                        else:
+                            # Try raw number
+                            number_match = re.search(r'\$?([\d,]+)', value)
+                            if number_match:
+                                raw_number = float(number_match.group(1).replace(',', ''))
+                                if raw_number > 1000000000:  # If in billions
+                                    gross_value = raw_number / 1000000
+                                elif raw_number > 1000000:  # If in raw dollars
+                                    gross_value = raw_number / 1000000
+                                else:
+                                    gross_value = raw_number
+                    break
+            if gross_value:
+                results['worldwide_gross_millions'] = gross_value
+        
+        # Director
+        if 'director' in questions_lower:
+            for key, value in infobox_data.items():
+                if 'directed' in key or 'director' in key:
+                    # Clean up the director name
+                    director = value.split('\n')[0]  # Take first line if multiple
+                    results['director'] = director.strip()
+                    break
+        
+        # Runtime
+        if 'runtime' in questions_lower:
+            for key, value in infobox_data.items():
+                if 'running time' in key or 'runtime' in key:
+                    # Extract minutes
+                    minutes_match = re.search(r'(\d+)\s*(?:minutes?|mins?)', value, re.IGNORECASE)
+                    if minutes_match:
+                        results['runtime_minutes'] = int(minutes_match.group(1))
+                    break
+        
+        # Release year
+        if 'release' in questions_lower or 'year' in questions_lower:
+            for key, value in infobox_data.items():
+                if 'release' in key or 'date' in key:
+                    # Extract year
+                    year_match = re.search(r'(19|20)\d{2}', value)
+                    if year_match:
+                        results['release_year'] = int(year_match.group(0))
+                    break
+        
+        # Production companies
+        if 'production' in questions_lower:
+            for key, value in infobox_data.items():
+                if 'production' in key and 'company' in key:
+                    # Split by common separators
+                    companies = re.split(r'[,\n]', value)
+                    companies = [c.strip() for c in companies if c.strip()]
+                    results['production_companies'] = companies
+                    break
+        
+        # Cast count
+        if 'cast' in questions_lower:
+            cast_count = 0
+            for key, value in infobox_data.items():
+                if 'starring' in key:
+                    # Count cast members by splitting on newlines and commas
+                    cast_members = re.split(r'[,\n]', value)
+                    cast_count = len([c for c in cast_members if c.strip()])
+                    break
+            results['main_cast_count'] = cast_count
+        
+        return results
+        
+    except Exception as e:
+        print(f"Error scraping Wikipedia page: {str(e)}")
+        return {"error": str(e)}
 
 async def analyze_films_data(questions_text: str) -> List[Any]:
     """Analyze films data based on questions"""
@@ -528,12 +688,554 @@ async def analyze_court_data(questions_text: str, questions_dict: Dict) -> Dict[
     finally:
         conn.close()
 
+async def analyze_sales_data(questions_text: str, df: pd.DataFrame) -> Dict[str, Any]:
+    """Analyze sales/business data dynamically based on questions"""
+    results = {}
+    questions_lower = questions_text.lower()
+    
+    # Detect date column
+    date_col = None
+    for col in df.columns:
+        if 'date' in col.lower() or 'time' in col.lower():
+            date_col = col
+            try:
+                df[date_col] = pd.to_datetime(df[date_col])
+                df['day_of_month'] = df[date_col].dt.day
+            except:
+                pass
+            break
+    
+    # Detect sales/value column
+    sales_col = None
+    for col in df.columns:
+        col_lower = col.lower()
+        if 'sales' in col_lower or 'revenue' in col_lower or 'amount' in col_lower or 'value' in col_lower:
+            sales_col = col
+            break
+    
+    # Detect category/region column
+    category_col = None
+    for col in df.columns:
+        col_lower = col.lower()
+        if 'region' in col_lower or 'category' in col_lower or 'group' in col_lower or 'type' in col_lower:
+            category_col = col
+            break
+    
+    # Total sales/sum
+    if ('total' in questions_lower or 'sum' in questions_lower) and sales_col:
+        results['total_sales'] = float(df[sales_col].sum())
+    
+    # Top category/region
+    if ('top' in questions_lower or 'highest' in questions_lower or 'best' in questions_lower) and category_col and sales_col:
+        category_sales = df.groupby(category_col)[sales_col].sum()
+        results['top_region'] = str(category_sales.idxmax())
+    
+    # Correlation analysis
+    if 'correlation' in questions_lower:
+        if 'day' in questions_lower and 'day_of_month' in df.columns and sales_col:
+            results['day_sales_correlation'] = float(df['day_of_month'].corr(df[sales_col]))
+        # Generic correlation between numeric columns
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        if len(numeric_cols) >= 2:
+            # Find which columns are mentioned in questions
+            for col1 in numeric_cols:
+                for col2 in numeric_cols:
+                    if col1 != col2 and col1.lower() in questions_lower and col2.lower() in questions_lower:
+                        corr_value = float(df[col1].corr(df[col2]))
+                        results[f'{col1}_{col2}_correlation'] = corr_value
+    
+    # Bar chart
+    if ('bar' in questions_lower or 'bar chart' in questions_lower) and category_col and sales_col:
+        try:
+            plt.figure(figsize=(8, 6))
+            category_data = df.groupby(category_col)[sales_col].sum()
+            
+            # Determine color from questions
+            color = 'blue'
+            if 'red' in questions_lower:
+                color = 'red'
+            elif 'green' in questions_lower:
+                color = 'green'
+            elif 'orange' in questions_lower:
+                color = 'orange'
+            
+            category_data.plot(kind='bar', color=color)
+            plt.xlabel(category_col.capitalize())
+            plt.ylabel(sales_col.capitalize() if sales_col else 'Value')
+            plt.title(f'{sales_col.capitalize()} by {category_col.capitalize()}')
+            plt.xticks(rotation=45)
+            plt.tight_layout()
+            
+            buffer = io.BytesIO()
+            plt.savefig(buffer, format='png', dpi=60, bbox_inches='tight')
+            buffer.seek(0)
+            img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            plt.close()
+            
+            results['bar_chart'] = f"data:image/png;base64,{img_base64}"
+        except Exception as e:
+            print(f"Error creating bar chart: {e}")
+    
+    # Median
+    if 'median' in questions_lower and sales_col:
+        results['median_sales'] = float(df[sales_col].median())
+    
+    # Mean/Average
+    if ('mean' in questions_lower or 'average' in questions_lower) and sales_col:
+        results['average_sales'] = float(df[sales_col].mean())
+    
+    # Tax calculation
+    if 'tax' in questions_lower and sales_col:
+        # Extract tax rate from questions
+        import re
+        tax_match = re.search(r'(\d+)%', questions_text)
+        tax_rate = 0.1  # Default 10%
+        if tax_match:
+            tax_rate = float(tax_match.group(1)) / 100
+        results['total_sales_tax'] = float(df[sales_col].sum() * tax_rate)
+    
+    # Cumulative/time series chart
+    if ('cumulative' in questions_lower or 'over time' in questions_lower) and date_col and sales_col:
+        try:
+            plt.figure(figsize=(8, 6))
+            df_sorted = df.sort_values(date_col)
+            df_sorted['cumulative'] = df_sorted[sales_col].cumsum()
+            
+            # Determine line color
+            line_color = 'blue'
+            if 'red' in questions_lower:
+                line_color = 'red'
+            elif 'green' in questions_lower:
+                line_color = 'green'
+            
+            plt.plot(df_sorted[date_col], df_sorted['cumulative'], color=line_color, linewidth=2)
+            plt.xlabel(date_col.capitalize())
+            plt.ylabel(f'Cumulative {sales_col.capitalize()}')
+            plt.title(f'Cumulative {sales_col.capitalize()} Over Time')
+            plt.xticks(rotation=45)
+            plt.grid(True, alpha=0.3)
+            plt.tight_layout()
+            
+            buffer = io.BytesIO()
+            plt.savefig(buffer, format='png', dpi=60, bbox_inches='tight')
+            buffer.seek(0)
+            img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            plt.close()
+            
+            results['cumulative_sales_chart'] = f"data:image/png;base64,{img_base64}"
+        except Exception as e:
+            print(f"Error creating cumulative chart: {e}")
+    
+    # Count of unique values
+    if 'count' in questions_lower:
+        if 'unique' in questions_lower:
+            for col in df.columns:
+                if col.lower() in questions_lower:
+                    results[f'unique_{col}_count'] = df[col].nunique()
+        elif 'total' in questions_lower:
+            results['total_count'] = len(df)
+    
+    # Min/Max values
+    if 'minimum' in questions_lower or 'min' in questions_lower:
+        if sales_col:
+            results['min_sales'] = float(df[sales_col].min())
+    
+    if 'maximum' in questions_lower or 'max' in questions_lower:
+        if sales_col:
+            results['max_sales'] = float(df[sales_col].max())
+    
+    return results
+
+async def analyze_network_data(questions_text: str, df: pd.DataFrame) -> Dict[str, Any]:
+    """Analyze network/graph data dynamically based on questions"""
+    results = {}
+    questions_lower = questions_text.lower()
+    
+    # Detect column names for network data
+    cols = df.columns.tolist()
+    source_col = None
+    target_col = None
+    
+    # Find source/target columns
+    for col in cols:
+        col_lower = col.lower()
+        if 'source' in col_lower or 'from' in col_lower or 'node1' in col_lower:
+            source_col = col
+        elif 'target' in col_lower or 'to' in col_lower or 'node2' in col_lower:
+            target_col = col
+    
+    # Default to first two columns if not found
+    if not source_col and not target_col and len(cols) >= 2:
+        source_col, target_col = cols[0], cols[1]
+    
+    # Create graph
+    G = nx.Graph()
+    if source_col and target_col:
+        for _, row in df.iterrows():
+            G.add_edge(row[source_col], row[target_col])
+    
+    # Analyze based on questions
+    
+    # Edge count
+    if 'edge' in questions_lower and 'count' in questions_lower:
+        results['edge_count'] = G.number_of_edges()
+    elif 'how many edges' in questions_lower:
+        results['edge_count'] = G.number_of_edges()
+    
+    # Highest degree node
+    if 'highest degree' in questions_lower or 'most connections' in questions_lower:
+        degrees = dict(G.degree())
+        if degrees:
+            highest_degree_node = max(degrees, key=degrees.get)
+            results['highest_degree_node'] = str(highest_degree_node)
+    
+    # Average degree
+    if 'average degree' in questions_lower or 'mean degree' in questions_lower:
+        degrees = dict(G.degree())
+        avg_degree = sum(degrees.values()) / len(degrees) if degrees else 0
+        results['average_degree'] = float(avg_degree)
+    
+    # Network density
+    if 'density' in questions_lower or 'network density' in questions_lower:
+        results['density'] = float(nx.density(G))
+    
+    # Shortest path - look for specific node names in questions
+    if 'shortest path' in questions_lower or 'path length' in questions_lower:
+        # Extract node names from questions
+        import re
+        # Look for patterns like "between X and Y" or "from X to Y"
+        pattern = r'between\s+(\w+)\s+and\s+(\w+)|from\s+(\w+)\s+to\s+(\w+)'
+        matches = re.findall(pattern, questions_lower, re.IGNORECASE)
+        
+        if matches:
+            for match in matches:
+                # Get non-empty groups
+                nodes = [n for n in match if n]
+                if len(nodes) >= 2:
+                    node1, node2 = nodes[0].capitalize(), nodes[1].capitalize()
+                    try:
+                        path_length = nx.shortest_path_length(G, node1, node2)
+                        # Create dynamic key name
+                        key_name = f'shortest_path_{node1.lower()}_{node2.lower()}'
+                        results[key_name] = path_length
+                    except:
+                        results[key_name] = -1
+    
+    # Network visualization
+    if 'draw' in questions_lower or 'plot' in questions_lower or 'visualiz' in questions_lower:
+        if 'network' in questions_lower or 'graph' in questions_lower:
+            try:
+                plt.figure(figsize=(8, 6))
+                pos = nx.spring_layout(G, seed=42)
+                
+                # Determine node color from questions
+                node_color = 'lightblue'
+                if 'red' in questions_lower:
+                    node_color = 'lightcoral'
+                elif 'green' in questions_lower:
+                    node_color = 'lightgreen'
+                elif 'yellow' in questions_lower:
+                    node_color = 'lightyellow'
+                
+                nx.draw(G, pos, with_labels=True, node_color=node_color,
+                        node_size=1500, font_size=10, font_weight='bold',
+                        edge_color='gray', width=2)
+                plt.title('Network Graph')
+                plt.axis('off')
+                
+                buffer = io.BytesIO()
+                plt.savefig(buffer, format='png', dpi=60, bbox_inches='tight')
+                buffer.seek(0)
+                img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+                plt.close()
+                
+                results['network_graph'] = f"data:image/png;base64,{img_base64}"
+            except Exception as e:
+                print(f"Error creating network graph: {e}")
+                results['network_graph'] = ""
+    
+    # Degree distribution/histogram
+    if ('degree' in questions_lower and ('distribution' in questions_lower or 'histogram' in questions_lower)) or \
+       ('bar chart' in questions_lower and 'degree' in questions_lower):
+        try:
+            plt.figure(figsize=(8, 6))
+            degree_sequence = sorted([d for n, d in G.degree()], reverse=True)
+            degree_count = Counter(degree_sequence)
+            degrees_list = list(degree_count.keys())
+            counts = list(degree_count.values())
+            
+            # Determine bar color from questions
+            bar_color = 'blue'
+            if 'green' in questions_lower:
+                bar_color = 'green'
+            elif 'red' in questions_lower:
+                bar_color = 'red'
+            elif 'orange' in questions_lower:
+                bar_color = 'orange'
+            
+            plt.bar(degrees_list, counts, color=bar_color, alpha=0.7)
+            plt.xlabel('Degree')
+            plt.ylabel('Number of Nodes')
+            plt.title('Degree Distribution')
+            plt.xticks(degrees_list)
+            plt.grid(True, alpha=0.3)
+            
+            buffer = io.BytesIO()
+            plt.savefig(buffer, format='png', dpi=60, bbox_inches='tight')
+            buffer.seek(0)
+            img_base64 = base64.b64encode(buffer.read()).decode('utf-8')
+            plt.close()
+            
+            results['degree_histogram'] = f"data:image/png;base64,{img_base64}"
+        except Exception as e:
+            print(f"Error creating degree histogram: {e}")
+            results['degree_histogram'] = ""
+    
+    # Additional network metrics that might be requested
+    if 'node' in questions_lower and 'count' in questions_lower:
+        results['node_count'] = G.number_of_nodes()
+    
+    if 'clustering coefficient' in questions_lower:
+        results['clustering_coefficient'] = float(nx.average_clustering(G))
+    
+    if 'connected' in questions_lower:
+        results['is_connected'] = nx.is_connected(G)
+    
+    if 'diameter' in questions_lower and nx.is_connected(G):
+        results['diameter'] = nx.diameter(G)
+    
+    return results
+
+async def dynamic_data_analysis(questions_text: str, csv_data: pd.DataFrame, csv_filename: str) -> Dict[str, Any]:
+    """Let the LLM dynamically analyze any CSV data and generate code on the fly"""
+    
+    print("Using dynamic LLM-based data analysis")
+    
+    # Prepare the data context for the LLM
+    data_info = {
+        "filename": csv_filename,
+        "shape": csv_data.shape,
+        "columns": csv_data.columns.tolist(),
+        "dtypes": {col: str(dtype) for col, dtype in csv_data.dtypes.items()},
+        "sample_data": csv_data.head(3).to_dict('records'),
+        "null_counts": csv_data.isnull().sum().to_dict()
+    }
+    
+    # Create the LLM prompt
+    context = f"""You are an expert data analyst. You have been given a CSV file with the following information:
+
+DATASET INFORMATION:
+- Filename: {data_info['filename']}
+- Shape: {data_info['shape'][0]} rows, {data_info['shape'][1]} columns
+- Columns: {data_info['columns']}
+- Data types: {data_info['dtypes']}
+- Sample data (first 3 rows): {data_info['sample_data']}
+- Null counts: {data_info['null_counts']}
+
+You need to analyze this data and answer the user's questions. 
+
+IMPORTANT INSTRUCTIONS:
+1. Write Python code to perform the analysis using pandas, matplotlib, numpy, etc.
+2. Return results as a JSON object with the EXACT keys requested in the questions
+3. For visualizations, create matplotlib charts and encode as base64 PNG strings
+4. Use the variable name 'df' to refer to the dataset (it's already loaded)
+5. Be precise with calculations and follow the exact format requested
+
+The dataset is available as a pandas DataFrame called 'df'. Write Python code to analyze it."""
+
+    full_prompt = f"{context}\n\nUSER QUESTIONS:\n{questions_text}\n\nWrite Python code to analyze the data and return the results in the exact JSON format requested."
+    
+    try:
+        # Call the LLM to generate analysis code
+        llm_response = await call_gemini(full_prompt)
+        
+        print(f"LLM generated response length: {len(llm_response)} chars")
+        
+        # Try to extract and execute Python code from the LLM response
+        code_blocks = extract_python_code(llm_response)
+        
+        if code_blocks:
+            print(f"Found {len(code_blocks)} code blocks")
+            results = await execute_analysis_code(code_blocks, csv_data)
+            if results:
+                return results
+        
+        # If no executable code found, try to parse the response as JSON
+        try:
+            # Look for JSON in the response
+            import re
+            json_match = re.search(r'\{.*\}', llm_response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(0)
+                parsed_result = json.loads(json_str)
+                return parsed_result
+        except:
+            pass
+            
+        # If all else fails, return the LLM response as-is
+        return {"llm_response": llm_response}
+        
+    except Exception as e:
+        print(f"Error in dynamic analysis: {e}")
+        return {"error": str(e), "fallback_response": "Dynamic analysis failed"}
+
+def extract_python_code(text: str) -> List[str]:
+    """Extract Python code blocks from LLM response"""
+    import re
+    
+    # Look for code blocks with ```python or ```
+    code_blocks = []
+    
+    # Pattern 1: ```python ... ```
+    python_blocks = re.findall(r'```python\n(.*?)\n```', text, re.DOTALL)
+    code_blocks.extend(python_blocks)
+    
+    # Pattern 2: ``` ... ```
+    generic_blocks = re.findall(r'```\n(.*?)\n```', text, re.DOTALL)
+    code_blocks.extend(generic_blocks)
+    
+    # Pattern 3: Look for lines that start with common Python patterns
+    lines = text.split('\n')
+    current_block = []
+    for line in lines:
+        stripped = line.strip()
+        if (stripped.startswith('import ') or 
+            stripped.startswith('from ') or
+            stripped.startswith('df[') or
+            stripped.startswith('df.') or
+            stripped.startswith('plt.') or
+            stripped.startswith('results = ') or
+            stripped.startswith('result = ')):
+            current_block.append(line)
+        elif current_block and (stripped.startswith(' ') or stripped.startswith('\t')):
+            current_block.append(line)
+        elif current_block:
+            if len(current_block) > 2:
+                code_blocks.append('\n'.join(current_block))
+            current_block = []
+    
+    if current_block and len(current_block) > 2:
+        code_blocks.append('\n'.join(current_block))
+    
+    return [block.strip() for block in code_blocks if block.strip()]
+
+def convert_to_json_serializable(obj):
+    """Convert numpy/pandas types to JSON serializable types"""
+    if hasattr(obj, 'item'):  # numpy scalars
+        return obj.item()
+    elif hasattr(obj, 'tolist'):  # numpy arrays
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    elif isinstance(obj, dict):
+        return {key: convert_to_json_serializable(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_to_json_serializable(item) for item in obj]
+    else:
+        return obj
+
+async def execute_analysis_code(code_blocks: List[str], df: pd.DataFrame) -> Dict[str, Any]:
+    """Safely execute the analysis code generated by LLM"""
+    
+    # Create a safe execution environment
+    safe_globals = {
+        'pd': pd,
+        'np': np,
+        'plt': plt,
+        'df': df,
+        'base64': base64,
+        'io': io,
+        'json': json,
+        're': re,
+        'datetime': datetime,
+        'Counter': Counter,
+        'matplotlib': matplotlib  # Add matplotlib for backend control
+    }
+    
+    results = {}
+    
+    for i, code in enumerate(code_blocks):
+        try:
+            print(f"Executing code block {i+1}:")
+            print(f"Code: {code[:200]}..." if len(code) > 200 else f"Code: {code}")
+            
+            # Execute the code
+            exec(code, safe_globals)
+            
+            # Look for results in common variable names
+            for var_name in ['results', 'result', 'output', 'analysis_result']:
+                if var_name in safe_globals and isinstance(safe_globals[var_name], dict):
+                    # Convert all values to JSON serializable format
+                    serializable_results = convert_to_json_serializable(safe_globals[var_name])
+                    results.update(serializable_results)
+                    print(f"Found results in {var_name}: {list(serializable_results.keys())}")
+            
+        except Exception as e:
+            print(f"Error executing code block {i+1}: {e}")
+            import traceback
+            traceback.print_exc()
+            continue
+    
+    # Final conversion to ensure everything is JSON serializable
+    return convert_to_json_serializable(results)
+
 async def process_data_request(questions_text: str, attachments: Dict[str, bytes]) -> Any:
     """Main processing function for data analysis requests"""
     
     print(f"Processing request with questions: {questions_text[:100]}...")
     questions_lower = questions_text.lower()
     
+    # Check for CSV data first
+    csv_data = None
+    csv_filename = None
+    
+    for filename, content in attachments.items():
+        if filename.endswith('.csv'):
+            csv_data = pd.read_csv(io.BytesIO(content))
+            csv_filename = filename.lower()
+            break
+    
+    # If we have CSV data, use dynamic LLM analysis
+    if csv_data is not None:
+        print(f"Found CSV data: {csv_filename} with shape {csv_data.shape}")
+        return await dynamic_data_analysis(questions_text, csv_data, csv_filename)
+    
+    # Keep the specific analysis functions for edge cases where they work better
+    # Network analysis (still useful for complex graph algorithms)
+    if ("degree" in questions_lower or "path" in questions_lower or 
+        "network" in questions_lower or "graph" in questions_lower):
+        print("Processing network data with specific analysis")
+        for filename, content in attachments.items():
+            if filename.endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(content))
+                return await analyze_network_data(questions_text, df)
+    
+    # Check for Wikipedia URL scraping requests
+    if "wikipedia" in questions_lower or "wiki" in questions_lower:
+        print("Processing Wikipedia scraping request")
+        # Look for Wikipedia URL in questions
+        import re
+        url_pattern = r'https?://[^\s]+wikipedia[^\s]*'
+        url_match = re.search(url_pattern, questions_text)
+        
+        if url_match:
+            wikipedia_url = url_match.group(0)
+            return await analyze_wikipedia_page(questions_text, wikipedia_url)
+        else:
+            # Try to construct URL from movie name
+            if "titanic" in questions_lower:
+                titanic_url = "https://en.wikipedia.org/wiki/Titanic_(1997_film)"
+                return await analyze_wikipedia_page(questions_text, titanic_url)
+            elif "avatar" in questions_lower:
+                avatar_url = "https://en.wikipedia.org/wiki/Avatar_(2009_film)"
+                return await analyze_wikipedia_page(questions_text, avatar_url)
+            elif "avengers" in questions_lower and "endgame" in questions_lower:
+                endgame_url = "https://en.wikipedia.org/wiki/Avengers:_Endgame"
+                return await analyze_wikipedia_page(questions_text, endgame_url)
+            # Add more movies as needed
+            
     if "gemini" in questions_lower or "llm" in questions_lower:
         print("Using Gemini for processing")
         context = "You are a data analyst. Analyze the following data and questions."

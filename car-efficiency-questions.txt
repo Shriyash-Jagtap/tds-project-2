@@ -1,0 +1,19 @@
+Analyze `sample-car-efficiency.csv`.
+
+Return a JSON object with keys:
+- `average_combined_mpg`: number
+- `most_efficient_car`: string
+- `fuel_type_efficiency`: object with fuel types as keys and average combined MPG as values
+- `price_efficiency_correlation`: number
+- `engine_size_mpg_correlation`: number
+- `efficiency_by_fuel_chart`: base64 PNG string under 100kB
+- `mpg_vs_price_scatter`: base64 PNG string under 100kB
+
+Answer:
+1. What is the average combined MPG across all cars?
+2. Which car model has the highest combined MPG?
+3. What is the average combined MPG for each fuel type (Gasoline, Hybrid, Electric)?
+4. What is the correlation between price and combined MPG?
+5. What is the correlation between engine size and combined MPG? (Exclude electric cars with 0.0L engines)
+6. Create a bar chart showing average combined MPG by fuel type with green bars. Encode as base64 PNG.
+7. Create a scatter plot of combined MPG vs price with blue dots. Encode as base64 PNG.
