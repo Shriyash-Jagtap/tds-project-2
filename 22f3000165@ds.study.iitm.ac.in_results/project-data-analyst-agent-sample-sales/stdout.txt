@@ -1,0 +1,54 @@
+[chat.js:25] Using unknown chat model: openai/gpt-4.1
+[chat.js:25] Using unknown chat model: openai/gpt-4.1
+[chat.js:25] Using unknown chat model: openai/gpt-4.1
+[chat.js:25] Using unknown chat model: openai/gpt-4.1-nano
+[chat.js:25] Using unknown chat model: openai/gpt-4.1-mini
+[chat.js:25] Using unknown chat model: openai/o3-mini
+[index.js:81] Successfully enabled SQLite WAL mode
+[migrate.js:58] Running database migrations...
+[migrate.js:60] Database migrations completed
+[migrate.js:58] Running database migrations...
+[migrate.js:60] Database migrations completed
+[eval.js:162] Cache is disabled.
+[load.js:210] Setting default prompt because there is no `prompts` field
+[load.js:220] Warning: Expected top-level "prompts" property in config or a test variable named "prompt"
+[index.js:156] Reading prompts from ["{{prompt}}"]
+[filterTests.js:45] Starting filterTests with options: {}
+[filterTests.js:46] Initial test count: 1
+[eval.js:170] Inserting prompt effa18501e44aafd9bc42a2f64ffc9b6350f94025520ca2ed382f9bdc4b6e982
+[eval.js:193] Inserting dataset 251a9e1ad870e970af11fa9af3b0a408f039c307c8e2afc16f8d12db4f8361b2
+[evaluatorTracing.js:83] [EvaluatorTracing] Checking tracing config: undefined
+[evaluatorTracing.js:84] [EvaluatorTracing] testSuite keys: description,tags,prompts,providers,providerPromptMap,tests,scenarios,defaultTest,derivedMetrics,nunjucksFilters,extensions,tracing
+[evaluatorTracing.js:85] [EvaluatorTracing] Full testSuite.tracing: undefined
+[evaluatorTracing.js:111] [EvaluatorTracing] Tracing not enabled or OTLP HTTP receiver not configured
+[evaluatorTracing.js:112] [EvaluatorTracing] tracing.enabled: undefined
+[evaluatorTracing.js:113] [EvaluatorTracing] tracing.otlp.http.enabled: undefined
+[evaluator.js:711] Starting evaluation eval-QN2-2025-08-12T11:04:51
+[evaluator.js:1279] Running 1 test cases (up to 4 at a time)...
+[evaluatorHelpers.js:161] Loading var question from file: /home/usr_22f3002542_ds_study_iitm_ac_/tds-05-2025-p2-evals/promptfoos/project-data-analyst-agent-sample-sales/questions.txt
+[evaluator.js:395] Provider type: exec: uv run run.py "https://tds-project-2-production-eeb4.up.railway.app/api"
+[scriptCompletion.js:62] Could not find any valid files in the command:  uv run run.py "https://tds-project-2-production-eeb4.up.railway.app/api"
+[scriptCompletion.js:104] Output from script  uv run run.py "https://tds-project-2-production-eeb4.up.railway.app/api": 
+[evaluator.js:417] Provider response properties: output
+[evaluator.js:418] Provider response cached property explicitly: undefined
+[evaluator.js:437] Evaluator response = {"output":""}...
+[evaluator.js:438] Evaluator checking cached flag: response.cached = false, provider.delay = 0
+[signal.js:20] Writing to signal file /home/usr_22f3002542_ds_study_iitm_ac_/.promptfoo/evalLastWritten
+[signal.js:22] Successfully wrote to signal file
+[evaluator.js:1245] Eval #1 complete (1 of 1)
+[signal.js:20] Writing to signal file /home/usr_22f3002542_ds_study_iitm_ac_/.promptfoo/evalLastWritten
+[signal.js:22] Successfully wrote to signal file
+[eval.js:318] Writing output to evaluation_logs/22f3000165@ds.study.iitm.ac.in/1/project-data-analyst-agent-sample-sales/output.json
+[index.js:284] ========================================================================================================================
+[eval.js:329] ✔ Evaluation complete. ID: eval-QN2-2025-08-12T11:04:51
+
+[eval.js:330] » Run promptfoo view to use the local web viewer
+[eval.js:335] » Do you want to share this with your team? Sign up for free at https://promptfoo.app
+[eval.js:337] » This project needs your feedback. What's one thing we can improve? https://promptfoo.dev/feedback
+[index.js:284] ========================================================================================================================
+[eval.js:437] Duration: 1s (concurrency: 4)
+[eval.js:438] Successes: 0
+[eval.js:439] Failures: 0
+[eval.js:441] Errors: 1
+[eval.js:444] Pass Rate: 0.00%
+[index.js:284] ========================================================================================================================

@@ -1,0 +1,319 @@
+{
+  "evalId": "eval-QN2-2025-08-12T11:04:51",
+  "results": {
+    "version": 3,
+    "timestamp": "2025-08-12T11:04:51.599Z",
+    "prompts": [
+      {
+        "raw": "{{prompt}}",
+        "label": "{{prompt}}",
+        "id": "effa18501e44aafd9bc42a2f64ffc9b6350f94025520ca2ed382f9bdc4b6e982",
+        "provider": "exec: uv run run.py \"https://tds-project-2-production-eeb4.up.railway.app/api\"",
+        "metrics": {
+          "score": 0,
+          "testPassCount": 0,
+          "testFailCount": 0,
+          "testErrorCount": 1,
+          "assertPassCount": 0,
+          "assertFailCount": 0,
+          "totalLatencyMs": 1043,
+          "tokenUsage": {
+            "prompt": 0,
+            "completion": 0,
+            "cached": 0,
+            "total": 0,
+            "numRequests": 0,
+            "completionDetails": {
+              "reasoning": 0,
+              "acceptedPrediction": 0,
+              "rejectedPrediction": 0
+            },
+            "assertions": {
+              "total": 0,
+              "prompt": 0,
+              "completion": 0,
+              "cached": 0,
+              "numRequests": 0,
+              "completionDetails": {
+                "reasoning": 0,
+                "acceptedPrediction": 0,
+                "rejectedPrediction": 0
+              }
+            }
+          },
+          "namedScores": {},
+          "namedScoresCount": {},
+          "cost": 0
+        }
+      }
+    ],
+    "results": [
+      {
+        "cost": 0,
+        "error": "SyntaxError: Unexpected end of JSON input\n\nSyntaxError: Unexpected end of JSON input\n    at JSON.parse (<anonymous>)\n    at eval (eval at getInlineTransformFunction (/home/usr_22f3002542_ds_study_iitm_ac_/.nvm/versions/node/v22.16.0/lib/node_modules/promptfoo/dist/src/util/transform.js:82:12), <anonymous>:3:13)\n    at transform (/home/usr_22f3002542_ds_study_iitm_ac_/.nvm/versions/node/v22.16.0/lib/node_modules/promptfoo/dist/src/util/transform.js:131:39)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async runEval (/home/usr_22f3002542_ds_study_iitm_ac_/.nvm/versions/node/v22.16.0/lib/node_modules/promptfoo/dist/src/evaluator.js:519:44)\n    at async processEvalStep (/home/usr_22f3002542_ds_study_iitm_ac_/.nvm/versions/node/v22.16.0/lib/node_modules/promptfoo/dist/src/evaluator.js:1003:26)\n    at async /home/usr_22f3002542_ds_study_iitm_ac_/.nvm/versions/node/v22.16.0/lib/node_modules/promptfoo/dist/src/evaluator.js:1283:17",
+        "gradingResult": null,
+        "id": "78b4a38e-b5b7-44e9-84bc-23bddaec3f65",
+        "latencyMs": 1043,
+        "namedScores": {},
+        "prompt": {
+          "raw": "",
+          "label": "{{prompt}}"
+        },
+        "promptId": "effa18501e44aafd9bc42a2f64ffc9b6350f94025520ca2ed382f9bdc4b6e982",
+        "promptIdx": 0,
+        "provider": {
+          "id": "exec: uv run run.py \"https://tds-project-2-production-eeb4.up.railway.app/api\"",
+          "label": ""
+        },
+        "score": 0,
+        "success": false,
+        "testCase": {
+          "vars": {
+            "question": "Analyze `sample-sales.csv`.\n\nReturn a JSON object with keys:\n- `total_sales`: number\n- `top_region`: string\n- `day_sales_correlation`: number\n- `bar_chart`: base64 PNG string under 100kB\n- `median_sales`: number\n- `total_sales_tax`: number\n- `cumulative_sales_chart`: base64 PNG string under 100kB\n\nAnswer:\n1. What is the total sales across all regions?\n2. Which region has the highest total sales?\n3. What is the correlation between day of month and sales? (Use the date column.)\n4. Plot total sales by region as a bar chart with blue bars. Encode as base64 PNG.\n5. What is the median sales amount across all orders?\n6. What is the total sales tax if the tax rate is 10%?\n7. Plot cumulative sales over time as a line chart with a red line. Encode as base64 PNG."
+          },
+          "assert": [
+            {
+              "type": "is-json",
+              "value": {
+                "type": "object",
+                "required": [
+                  "total_sales",
+                  "top_region",
+                  "day_sales_correlation",
+                  "bar_chart",
+                  "median_sales",
+                  "total_sales_tax",
+                  "cumulative_sales_chart"
+                ],
+                "properties": {
+                  "total_sales": {
+                    "type": "number"
+                  },
+                  "top_region": {
+                    "type": "string"
+                  },
+                  "day_sales_correlation": {
+                    "type": "number"
+                  },
+                  "bar_chart": {
+                    "type": "string"
+                  },
+                  "median_sales": {
+                    "type": "number"
+                  },
+                  "total_sales_tax": {
+                    "type": "number"
+                  },
+                  "cumulative_sales_chart": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            {
+              "type": "python",
+              "weight": 3,
+              "value": "if output[\"total_sales\"] == 1140:\n  return True\nreturn False\n"
+            },
+            {
+              "type": "python",
+              "weight": 3,
+              "value": "if output[\"top_region\"].lower() == \"west\":\n  return True\nreturn False    \n"
+            },
+            {
+              "type": "python",
+              "weight": 3,
+              "value": "val = float(output[\"day_sales_correlation\"])\nif abs(val - 0.2228124549277306) <= 0.001:\n  return True\nreturn False\n"
+            },
+            {
+              "type": "python",
+              "weight": 3,
+              "value": "if output[\"median_sales\"] == 140:\n  return True\nreturn False\n"
+            },
+            {
+              "type": "python",
+              "weight": 3,
+              "value": "if output[\"total_sales_tax\"] == 114:\n  return True\nreturn False\n"
+            },
+            {
+              "type": "llm-rubric",
+              "weight": 8,
+              "rubricPrompt": "[\n  {\"role\":\"system\",\"content\":\"Grade the bar chart. Score 1 only if (a) bar chart of total sales by region; (b) bars are blue; (c) axes visible and labelled; (d) file size < 100 kB. Respond JSON {bars:bool,color:bool,axes:bool,size:bool,score:number}\"},\n  {\"role\":\"user\",\"content\":[\n    {\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,{{output[\"bar_chart\"]}}\"}},\n    {\"type\":\"text\",\"text\":\"{{vars.question}}\"}\n  ]}\n]\n",
+              "threshold": 0.99
+            },
+            {
+              "type": "llm-rubric",
+              "weight": 8,
+              "rubricPrompt": "[\n  {\"role\":\"system\",\"content\":\"Grade the line chart. Score 1 only if (a) line chart of cumulative sales over time; (b) line is red; (c) axes visible and labelled; (d) file size < 100 kB. Respond JSON {line:bool,color:bool,axes:bool,size:bool,score:number}\"},\n  {\"role\":\"user\",\"content\":[\n    {\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,{{output[\"cumulative_sales_chart\"]}}\"}},\n    {\"type\":\"text\",\"text\":\"{{vars.question}}\"}\n  ]}\n]\n",
+              "threshold": 0.99
+            }
+          ],
+          "options": {
+            "provider": {
+              "id": "openai:gpt-4.1-nano"
+            },
+            "transform": "JSON.parse(output)"
+          },
+          "metadata": {}
+        },
+        "testIdx": 0,
+        "vars": {
+          "question": "Analyze `sample-sales.csv`.\n\nReturn a JSON object with keys:\n- `total_sales`: number\n- `top_region`: string\n- `day_sales_correlation`: number\n- `bar_chart`: base64 PNG string under 100kB\n- `median_sales`: number\n- `total_sales_tax`: number\n- `cumulative_sales_chart`: base64 PNG string under 100kB\n\nAnswer:\n1. What is the total sales across all regions?\n2. Which region has the highest total sales?\n3. What is the correlation between day of month and sales? (Use the date column.)\n4. Plot total sales by region as a bar chart with blue bars. Encode as base64 PNG.\n5. What is the median sales amount across all orders?\n6. What is the total sales tax if the tax rate is 10%?\n7. Plot cumulative sales over time as a line chart with a red line. Encode as base64 PNG."
+        },
+        "metadata": {},
+        "failureReason": 2
+      }
+    ],
+    "stats": {
+      "successes": 0,
+      "failures": 0,
+      "errors": 1,
+      "tokenUsage": {
+        "prompt": 0,
+        "completion": 0,
+        "cached": 0,
+        "total": 0,
+        "numRequests": 0,
+        "completionDetails": {
+          "reasoning": 0,
+          "acceptedPrediction": 0,
+          "rejectedPrediction": 0
+        },
+        "assertions": {
+          "total": 0,
+          "prompt": 0,
+          "completion": 0,
+          "cached": 0,
+          "numRequests": 0,
+          "completionDetails": {
+            "reasoning": 0,
+            "acceptedPrediction": 0,
+            "rejectedPrediction": 0
+          }
+        }
+      }
+    }
+  },
+  "config": {
+    "tags": {},
+    "description": "Sample evaluation – network dataset",
+    "prompts": [
+      "{{prompt}}"
+    ],
+    "providers": [
+      "exec: uv run run.py \"{{ env.PROVIDER_URL }}\""
+    ],
+    "tests": [
+      {
+        "vars": {
+          "question": "file://questions.txt"
+        },
+        "assert": [
+          {
+            "type": "is-json",
+            "value": {
+              "type": "object",
+              "required": [
+                "total_sales",
+                "top_region",
+                "day_sales_correlation",
+                "bar_chart",
+                "median_sales",
+                "total_sales_tax",
+                "cumulative_sales_chart"
+              ],
+              "properties": {
+                "total_sales": {
+                  "type": "number"
+                },
+                "top_region": {
+                  "type": "string"
+                },
+                "day_sales_correlation": {
+                  "type": "number"
+                },
+                "bar_chart": {
+                  "type": "string"
+                },
+                "median_sales": {
+                  "type": "number"
+                },
+                "total_sales_tax": {
+                  "type": "number"
+                },
+                "cumulative_sales_chart": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "python",
+            "weight": 3,
+            "value": "if output[\"total_sales\"] == 1140:\n  return True\nreturn False\n"
+          },
+          {
+            "type": "python",
+            "weight": 3,
+            "value": "if output[\"top_region\"].lower() == \"west\":\n  return True\nreturn False    \n"
+          },
+          {
+            "type": "python",
+            "weight": 3,
+            "value": "val = float(output[\"day_sales_correlation\"])\nif abs(val - 0.2228124549277306) <= 0.001:\n  return True\nreturn False\n"
+          },
+          {
+            "type": "python",
+            "weight": 3,
+            "value": "if output[\"median_sales\"] == 140:\n  return True\nreturn False\n"
+          },
+          {
+            "type": "python",
+            "weight": 3,
+            "value": "if output[\"total_sales_tax\"] == 114:\n  return True\nreturn False\n"
+          },
+          {
+            "type": "llm-rubric",
+            "weight": 8,
+            "rubricPrompt": "[\n  {\"role\":\"system\",\"content\":\"Grade the bar chart. Score 1 only if (a) bar chart of total sales by region; (b) bars are blue; (c) axes visible and labelled; (d) file size < 100 kB. Respond JSON {bars:bool,color:bool,axes:bool,size:bool,score:number}\"},\n  {\"role\":\"user\",\"content\":[\n    {\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,{{output[\"bar_chart\"]}}\"}},\n    {\"type\":\"text\",\"text\":\"{{vars.question}}\"}\n  ]}\n]\n",
+            "threshold": 0.99
+          },
+          {
+            "type": "llm-rubric",
+            "weight": 8,
+            "rubricPrompt": "[\n  {\"role\":\"system\",\"content\":\"Grade the line chart. Score 1 only if (a) line chart of cumulative sales over time; (b) line is red; (c) axes visible and labelled; (d) file size < 100 kB. Respond JSON {line:bool,color:bool,axes:bool,size:bool,score:number}\"},\n  {\"role\":\"user\",\"content\":[\n    {\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,{{output[\"cumulative_sales_chart\"]}}\"}},\n    {\"type\":\"text\",\"text\":\"{{vars.question}}\"}\n  ]}\n]\n",
+            "threshold": 0.99
+          }
+        ]
+      }
+    ],
+    "scenarios": [],
+    "env": {},
+    "sharing": true,
+    "defaultTest": {
+      "options": {
+        "provider": {
+          "id": "openai:gpt-4.1-nano"
+        },
+        "transform": "JSON.parse(output)"
+      },
+      "vars": {},
+      "assert": [],
+      "metadata": {}
+    },
+    "outputPath": [
+      "evaluation_logs/22f3000165@ds.study.iitm.ac.in/1/project-data-analyst-agent-sample-sales/output.json"
+    ],
+    "extensions": [],
+    "metadata": {}
+  },
+  "shareableUrl": null,
+  "metadata": {
+    "promptfooVersion": "0.117.5",
+    "nodeVersion": "v22.16.0",
+    "platform": "linux",
+    "arch": "x64",
+    "exportedAt": "2025-08-12T11:04:52.667Z",
+    "evaluationCreatedAt": "2025-08-12T11:04:51.599Z"
+  }
+}
