@@ -1,0 +1,16 @@
+Return a JSON object with keys:
+- edge_count: number
+- highest_degree_node: string  
+- average_degree: number
+- density: number
+- shortest_path_alice_eve: number
+- network_graph: base64 PNG string under 100kB
+- degree_histogram: base64 PNG string under 100kB
+
+How many edges are in the network?
+Which node has the highest degree?
+What is the average degree of the network?
+What is the network density?
+What is the length of the shortest path between Alice and Eve?
+Draw the network with nodes labelled and edges shown.
+Plot the degree distribution as a bar chart with green bars.
